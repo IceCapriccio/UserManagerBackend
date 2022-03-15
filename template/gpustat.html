@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+<head>
+    <style>
+        body { overflow-x: scroll; }
+        nav.header { font-family: monospace; margin-bottom: 10px; }
+        nav.header a, nav.header a:visited { color: #329af0; text-decoration: none; }
+        nav.header a:hover { color: #a3daff; }
+
+        #gpustat { line-height: 0.95; }
+        pre.ansi2html-content { white-space: pre; word-wrap: normal; }  /* no line break */
+    </style>
+
+    {{ ansi2html_headers | safe }}
+</head>
+
+<body class="body_foreground body_background">
+<p style="color: greenyellow;">使用Tips：</p>
+<div style="color: greenyellow;" >
+
+    <p> 1. 请勿重启！请勿重启！请勿重启！重启会导致服务器直接宕掉！</p>
+    <p> 2. 申请账号请向各自讨论班管理员申请，用户名为自己姓名全拼，账号无sudo权限。（为有序管理，请大家理解） 如果发现私自创建的账号，直接删除。 如果需要安装软件，请向管理员申请。</p>
+    <p> 3. 软件、数据尽量放在在自己的用户目录</p>
+    <p> 4. Anaconda 环境已经装好，如果需要请创建自己的python环境</p>
+    <p> 5. 两台3090服务器IP：10.126.239.153、10.126.196.102</p>
+    <p> 6. 禁止用管理员账号占用GPU资源，如果需要，请用自己的账号。</p>
+</div>
+
+<br>
+<hr>
+<br>
+
+<div>
+    <p>占用GPU资源时间（s)：</p>
+    <pre class="ansi2html-content" id="time_use-content"> </pre>
+    <table style="text-align: left; border-spacing: 15px 5px">
+        <thead>
+        <tr>
+            <th style="color: cornflowerblue">用户名</th>
+            <th style="color: coral">连续使用时间</th>
+        </tr>
+        </thead>
+        <tbody id="time_use"></tbody>
+    </table>
+</div>
+
+
+<br>
+<hr>
+<br>
+
+<div id="gpustat">
+    <p>GPU resources & status:</p>
+    <pre class="ansi2html-content" id="gpustat-content"></pre>
+</div>
+<br>
+<hr>
+<br>
+<!--<p>已注册用户：</p>-->
+<!--<p></p>-->
+<!--<p>qsjtlb 管理员：王炜良</p>-->
+<!--<p>gftlb 管理员：宣羽泽</p>-->
+<p></p>
+</body>
+
+<script>
+    function parse_time(time) {
+        let s = time % 60;
+        let min = time % 3600 / 60;
+        let h = time % 86400 / 3600;
+        let day = time / 86400;
+        return ` ${parseInt(day)} day&nbsp;&nbsp;${parseInt(h)} h&nbsp;&nbsp;${parseInt(min)} min&nbsp;&nbsp;${parseInt(s)} s`;
+    }
+    function addtr(list){
+         var tab=document.getElementById('time_use');
+         let html = ''
+        for (let index in list) {
+            if (list[index].time === 0) {
+                continue;
+            }
+            let time_s = parse_time(list[index].time);
+            html += `<tr><td style="color: cornflowerblue">${list[index].username}</td>
+            <td style="color: coral">${time_s}</td></tr>`;
+        }
+         tab.innerHTML=html;
+    }
+    let ws_protocol = (location.protocol === 'https:' ? 'wss:' : 'ws:');
+    let ws_time = new WebSocket(ws_protocol + "//{{http_host}}/time");
+    let ws_status = new WebSocket(ws_protocol + "//{{http_host}}/status");
+
+    // update use time of every user online
+
+    ws_time.onopen = function(e) {
+        console.log('Websocket connection established - time', ws_status);
+        ws_time.send('time');
+    };
+    ws_time.onerror = function(error) {
+        console.log("onerror", error);
+    };
+    ws_time.onmessage = function(e) {
+        var msg = e.data;
+        console.log('time - Received data, length = ' + msg.length + ', ' + new Date().toString());
+        let json = JSON.parse(msg);
+        let table = [];
+        for (let username in json) {
+            let time = json[username];
+            table.push({'username': username, 'time': time});
+        }
+        table.sort((a, b) => a.time < b.time ? 1 : -1);
+        console.log(table);
+        addtr(table);
+    };
+
+    ws_time.onclose = function (data) {
+        console.log('time - close: data=', data);
+    }
+
+
+    ws_status.onopen = function(e) {
+        console.log('Websocket connection established', ws_status);
+        ws_status.send('gpustat');
+    };
+    ws_status.onerror = function(error) {
+        console.log("onerror", error);
+    };
+    ws_status.onmessage = function(e) {
+        var msg = e.data;
+        console.log('Received data, length = ' + msg.length + ', ' + new Date().toString());
+        document.getElementById('gpustat-content').innerHTML = msg;
+    };
+
+    ws_status.onclose = function (e) {
+        console.log('close: data=', data);
+    }
+
+
+
+    window.onbeforeunload = function() {
+        console.log('on before unload');
+        ws_time.close();  // close gpustat websocket client on exit
+        ws_status.close();  // close time websocket client on exit
+    }
+    window.timer = setInterval( function() { ws_time.send('time'); ws_status.send('gpustat');}, {{ interval }});
+</script>
+</html>
