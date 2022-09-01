@@ -34,19 +34,21 @@ __PATH__ = os.path.abspath(os.path.dirname(__file__))
 # we can safely delete this user in context.user_time
 MACHINES_COUNT = 0
 
+
 ###############################################################################
 # Background workers to collect information from nodes
 ###############################################################################
 
 class Context(object):
     '''The global context object.'''
+
     def __init__(self):
         self.host_status = OrderedDict()
         self.interval = 5.0
         self.use_time = OrderedDict()
         self.delete_vote = OrderedDict()
 
-    def host_set_message(self, hostname: str, msg: str, ncolor_msg: str=None):
+    def host_set_message(self, hostname: str, msg: str, ncolor_msg: str = None):
         self.host_status[hostname] = colored(f"({hostname}) ", 'white') + msg + '\n'
         if ncolor_msg is not None:
             print(bytes(ncolor_msg))
@@ -71,13 +73,15 @@ yons-desktop                   Fri Mar 11 14:41:50 2022  465.19.01
         # Only if all hosts have no userA running program, we can delete userA.
         all_users = set(self.use_time.keys()) | set(user_mem.keys())
         for user in all_users:
-            if user in user_mem and user_mem[user] > total_mem / 10: # be regarded as 'occupied' status when memory occupation rate >= 10%
+            if user in user_mem and user_mem[
+                user] > total_mem / 10:  # be regarded as 'occupied' status when memory occupation rate >= 10%
                 self.use_time[user] = self.use_time.get(user, 0) + 5
                 self.delete_vote[user] = 0
             elif user in self.use_time.keys() and (user not in user_mem.keys() or user_mem[user] < total_mem / 10):
                 self.delete_vote[user] = self.delete_vote.get(user, 0) + 1
                 if self.delete_vote.get(user, 0) >= 3 and user in self.use_time.keys():
                     del self.use_time[user]
+
 
 context = Context()
 
@@ -93,7 +97,9 @@ async def run_client(hostname: str, exec_cmd: str, *, port=22, username=None,
     async def _loop_body():
         # establish a SSH connection.
         async with asyncssh.connect(hostname, port=port, username=username) as conn:
-            cprint(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}[{hostname:<{L}}] SSH connection established!", attrs=['bold'])
+            cprint(
+                f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}[{hostname:<{L}}] SSH connection established!",
+                attrs=['bold'])
 
             while True:
                 if False:  # verbose: XXX DEBUG
@@ -109,7 +115,8 @@ async def run_client(hostname: str, exec_cmd: str, *, port=22, username=None,
                     cprint(f"[{now} [{hostname:<{L}}] Error, exitcode={result.exit_status}", color='red')
                     cprint(result.stderr or '', color='red')
                     stderr_summary = (result.stderr or '').split('\n')[0]
-                    context.host_set_message(hostname, colored(f'[exitcode {result.exit_status}] {stderr_summary}', 'red'))
+                    context.host_set_message(hostname,
+                                             colored(f'[exitcode {result.exit_status}] {stderr_summary}', 'red'))
                 else:
                     if verbose:
                         cprint(f"[{now} [{hostname:<{L}}] OK from gpustat ({len(result.stdout)} bytes)", color='cyan')
@@ -188,11 +195,11 @@ async def spawn_clients(hosts: List[str], *,
         name_length = max(len(hostname) for hostname in host_names)
 
         # launch all clients parallel
-        await asyncio.gather(*[
-            run_client(hostname, exec_command_dict[hostname], port=port or default_port, username=username,
-                       verbose=verbose, name_length=name_length)
-            for (hostname, username, port) in zip(host_names, host_users, host_ports)
-        ])
+        clients = [run_client(hostname, exec_command_dict[hostname], port=port or default_port, username=username,
+                              verbose=verbose, name_length=name_length)
+                   for (hostname, username, port) in zip(host_names, host_users, host_ports)
+                   ]
+        await asyncio.gather(*clients)
     except Exception as ex:
         # TODO: throw the exception outside and let aiohttp abort startup
         traceback.print_exc()
@@ -205,6 +212,7 @@ async def spawn_clients(hosts: List[str], *,
 
 # monkey-patch ansi2html scheme. TODO: better color codes
 import ansi2html
+
 scheme = 'solarized'
 ansi2html.style.SCHEME[scheme] = list(ansi2html.style.SCHEME[scheme])
 ansi2html.style.SCHEME[scheme][0] = '#555555'
@@ -287,6 +295,7 @@ async def host_status_handler(request):
           f"INFO: Websocket of host status from {request.remote} closed")
     return wsr
 
+
 ###############################################################################
 # app factory and entrypoint.
 ###############################################################################
@@ -298,7 +307,6 @@ def create_app(loop, *,
                ssl_certfile: Optional[str] = None,
                ssl_keyfile: Optional[str] = None,
                verbose=True):
-
     app = web.Application()
     app.add_routes([
         web.get('/status', host_status_handler),
@@ -317,6 +325,7 @@ def create_app(loop, *,
         cprint(f"... Terminating the tasks: {app['tasks']}", color='yellow')
         app['tasks'].cancel()
         await app['tasks']
+
     app.on_shutdown.append(shutdown_background_tasks)
 
     # jinja2 setup
@@ -334,7 +343,7 @@ def create_app(loop, *,
 
         cprint(f"Using Secure HTTPS (SSL/TLS) server ...", color='green')
     else:
-        ssl_context = None   # type: ignore
+        ssl_context = None  # type: ignore
     return app, ssl_context
 
 

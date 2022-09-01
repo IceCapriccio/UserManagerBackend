@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+        body { overflow-x: scroll; }
+        nav.header { font-family: monospace; margin-bottom: 10px; }
+        nav.header a, nav.header a:visited { color: #329af0; text-decoration: none; }
+        nav.header a:hover { color: #a3daff; }
+
+        #gpustat { line-height: 0.95; }
+        pre.ansi2html-content { white-space: pre; word-wrap: normal; }  /* no line break */
+    </style>
+
+    {{ ansi2html_headers | safe }}
+  </head>
+
+  <body class="body_foreground body_background">
+
+    <nav class="header">
+      <a href="https://github.com/wookayin/gpustat-web" target="_blank">gpustat-web</a>
+        by <a href="https://github.com/wookayin" target="_blank">@wookayin</a>
+      <a href="javascript:clearTimeout(window.timer);" style="margin-left: 20px; color: #666666;"
+         onclick="this.style.display='none';">[turn off auto-refresh]</a>
+    </nav>
+
+    <div id="gpustat">
+      <pre class="ansi2html-content" id="gpustat-content">
+      </pre>
+    </div>
+
+    <br>
+    <hr>
+    <br>
+
+  <div id="time_use">
+    <pre class="ansi2html-content" id="time_use-content">
+    </pre>
+  </div>
+
+  </body>
+
+  <script>
+        // update gpu status of every host
+        var ws_protocol = (location.protocol == 'https:' ? 'wss:' : 'ws:');
+        var ws = new WebSocket(ws_protocol + "//{{http_host}}/ws");
+        ws.onopen = function(e) {
+          console.log('Websocket connection established', ws);
+          ws.send('gpustat');
+        };
+        ws.onerror = function(error) {
+          console.log("onerror", error);
+        };
+        ws.onmessage = function(e) {
+          var msg = e.data;
+          console.log('Received data, length = ' + msg.length + ', ' + new Date().toString());
+          document.getElementById('gpustat-content').innerHTML = msg;
+        };
+                // update use time of every user online
+        var ws_time = new WebSocket(ws_protocol + "//{{http_host}}/time");
+        ws_time.onopen = function(e) {
+          console.log('Websocket connection established - time', ws);
+          ws_time.send('time');
+        };
+        ws_time.onerror = function(error) {
+          console.log("onerror", error);
+        };
+        ws_time.onmessage = function(e) {
+          var msg = e.data;
+          console.log('Received data, length = ' + msg.length + ', ' + new Date().toString());
+          document.getElementById('time_use-content').innerHTML = msg;
+        };
+
+
+        window.onbeforeunload = function() {
+          ws_time.close();  // close websocket client on exit
+          ws.close();  // close time websocket client on exit
+        };
+        {#window.timer = setInterval( function() { ws_time.send('time'); ws.send('gpustat');}, {{ interval }});#}
+  </script>
+
+  <script>
+
+  </script>
+</html>
